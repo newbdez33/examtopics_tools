@@ -1,9 +1,9 @@
 import { Command } from 'commander';
-import { prettifyJsonFile } from './modules/utils/prettifier.js';
+import { localizeImagesInJsonFile, prettifyJsonFile } from './modules/utils/prettifier.js';
 import { fetchAllQuestionsFromCurlScript } from './modules/fetch/fetcher.js';
 import { mergeQuestionsFromDir } from './modules/merge/merger.js';
 import { resolveDataPath } from './modules/utils/path-helper.js';
-import { parsePdfQuestions } from './modules/pdf/pdf-parser.js';
+import { extractPdfImagesIntoQuestions, parsePdfQuestions } from './modules/pdf/pdf-parser.js';
 
 const program = new Command();
 
@@ -20,6 +20,30 @@ program
   .action(async (file, options) => {
     try {
       await prettifyJsonFile(resolveDataPath(file), options.suffix);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('localize-images')
+  .description('Download remote images and rewrite image src to local')
+  .requiredOption('-i, --input <file>', 'Input JSON file path')
+  .option('-o, --output <file>', 'Output JSON file path (default: overwrite input)')
+  .action(async (options) => {
+    try {
+      const resolvedInput = resolveDataPath(options.input);
+      if (options.output) {
+        await localizeImagesInJsonFile({
+          inputPath: resolvedInput,
+          outputPath: resolveDataPath(options.output),
+        });
+      } else {
+        await localizeImagesInJsonFile({
+          inputPath: resolvedInput,
+        });
+      }
     } catch (error) {
       console.error(error instanceof Error ? error.message : error);
       process.exit(1);
@@ -82,6 +106,29 @@ program
       await parsePdfQuestions({
         inputPath: resolveDataPath(options.input),
         outputPath: resolveDataPath(options.output),
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('extract-pdf-images')
+  .description('Extract PDF images and inject references into question content')
+  .requiredOption('-p, --pdf <file>', 'Input PDF file path')
+  .requiredOption('-j, --json <file>', 'Input JSON file path')
+  .requiredOption('-o, --output <file>', 'Output JSON file path')
+  .option('--min-width <number>', 'Minimum image width', (v) => Number(v), 80)
+  .option('--min-height <number>', 'Minimum image height', (v) => Number(v), 80)
+  .action(async (options) => {
+    try {
+      await extractPdfImagesIntoQuestions({
+        pdfPath: resolveDataPath(options.pdf),
+        inputJsonPath: resolveDataPath(options.json),
+        outputJsonPath: resolveDataPath(options.output),
+        minWidth: options.minWidth,
+        minHeight: options.minHeight,
       });
     } catch (error) {
       console.error(error instanceof Error ? error.message : error);

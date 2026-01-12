@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "commander": "^14.0.2",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.4.149",
+    "pngjs": "^7.0.0"
   }
 }
