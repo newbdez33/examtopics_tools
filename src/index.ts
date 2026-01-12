@@ -3,7 +3,7 @@ import { prettifyJsonFile } from './modules/utils/prettifier.js';
 import { fetchAllQuestionsFromCurlScript } from './modules/fetch/fetcher.js';
 import { mergeQuestionsFromDir } from './modules/merge/merger.js';
 import { resolveDataPath } from './modules/utils/path-helper.js';
-import { parsePdfToQuestions } from './modules/pdf/pdf-parser.js';
+import { parsePdfQuestions } from './modules/pdf/pdf-parser.js';
 
 const program = new Command();
 
@@ -79,7 +79,10 @@ program
   .requiredOption('-o, --output <file>', 'Output JSON file path')
   .action(async (options) => {
     try {
-      await parsePdfToQuestions(resolveDataPath(options.input), resolveDataPath(options.output));
+      await parsePdfQuestions({
+        inputPath: resolveDataPath(options.input),
+        outputPath: resolveDataPath(options.output),
+      });
     } catch (error) {
       console.error(error instanceof Error ? error.message : error);
       process.exit(1);

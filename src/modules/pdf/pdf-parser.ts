@@ -6,52 +6,41 @@ const require = createRequire(import.meta.url);
 const pdf = require('pdf-parse');
 
 export type ParsedQuestion = {
-  questionNo: number;
-  text: string;
+  questionId: number;
+  question: string;
   options: string[];
   answer: string;
 };
 
-export async function parsePdfToQuestions(inputPath: string, outputPath: string): Promise<void> {
-  const absoluteInput = path.resolve(inputPath);
-  const absoluteOutput = path.resolve(outputPath);
+export type ParsePdfOptions = {
+  inputPath: string;
+  outputPath: string;
+};
 
-  console.log(`Reading PDF from ${absoluteInput}...`);
-  const dataBuffer = await fs.readFile(absoluteInput);
+export async function parsePdfQuestions(options: ParsePdfOptions): Promise<void> {
+  const inputAbsolute = path.resolve(options.inputPath);
+  const outputAbsolute = path.resolve(options.outputPath);
+
+  console.log(`Reading PDF from ${inputAbsolute}...`);
+  const dataBuffer = await fs.readFile(inputAbsolute);
+
   const data = await pdf(dataBuffer);
+  const fullText = data.text;
 
-  const text = data.text;
-  
-  // Save raw text for debugging if needed (optional, maybe controlled by a flag, but good for now)
-  // await fs.writeFile(absoluteInput + '.txt', text, 'utf-8');
-
-  const questions: ParsedQuestion[] = [];
-  
   // Split by "Question #"
-  // Example pattern: "Question #1"
-  // We need to be careful not to split on "Question #1" inside text, but usually it's at start of line
-  const questionBlocks = text.split(/Question #(\d+)/g);
-
-  // split results in [preamble, "1", content, "2", content...]
-  // So we iterate from index 1, taking 2 items at a time
+  // The format is usually "Question #1", "Question #2", etc.
+  const questionsRaw = fullText.split(/Question #(\d+)/);
   
-  for (let i = 1; i < questionBlocks.length; i += 2) {
-    const qNumStr = questionBlocks[i];
-    const content = questionBlocks[i + 1];
-    
-    if (!qNumStr || !content) continue;
+  const questions: ParsedQuestion[] = [];
 
-    const questionNo = parseInt(qNumStr, 10);
+  // The split result will be: [preamble, "1", " content...", "2", " content...", ...]
+  // So we iterate with step 2
+  for (let i = 1; i < questionsRaw.length; i += 2) {
+    const questionNoStr = questionsRaw[i];
+    const content = questionsRaw[i + 1];
+    const questionId = parseInt(questionNoStr, 10);
     
-    // Parse content
-    // content usually contains:
-    // Topic 1
-    // Actual text
-    // A. Option A
-    // B. Option B
-    // ...
-    // Correct Answer: A
-    // Community vote distribution... (maybe)
+    // Process content to extract Question Text, Options, Answer
     
     // 1. Extract Answer
     const answerMatch = content.match(/Correct Answer:\s*([A-Z]+)/);
@@ -65,7 +54,7 @@ export async function parsePdfToQuestions(inputPath: string, outputPath: string)
     const optionsStartIndex = content.search(/(^|\n)A\.\s/);
     
     let questionText = '';
-    const options: string[] = [];
+    const questionOptions: string[] = [];
 
     if (optionsStartIndex !== -1) {
       // Everything before "A. " is the question text
@@ -95,14 +84,8 @@ export async function parsePdfToQuestions(inputPath: string, outputPath: string)
         // Remove "Most Voted" if present
         optionContent = optionContent.replace(/Most Voted/g, '').trim();
         
-        // Add the prefix (e.g. "A. ") for clarity or just the text?
-        // The previous output had "A. Text", so let's keep that format or just text?
-        // Previous output: "A. Turn on..."
-        // My logic above extracts "Turn on..." (without A.)
-        // But the previous implementation included the letter in the substring because I sliced from match index.
-        // Let's reconstruct it to be safe: Letter + ". " + content
         const letter = match[2];
-        options.push(`${letter}. ${optionContent}`);
+        questionOptions.push(`${letter}. ${optionContent}`);
       }
     } else {
       // Fallback: No "A. " found. Maybe text only or weird formatting.
@@ -114,26 +97,19 @@ export async function parsePdfToQuestions(inputPath: string, outputPath: string)
       questionText = questionText.replace(/^Topic \d+\s*/, '').trim();
     }
     
-    // Clean up "VP\nC" type artifacts in text if possible?
-    // If we split at "A.", "VP\nC" appearing before "A." will be part of text.
-    // "500 G\nB. Each site..." appearing before "A." will be part of text.
-    // This solves the issue of misinterpreting "B." or "C." in text as options, 
-    // PROVIDED that "A." always starts the options list.
-
     questions.push({
-      questionNo,
-      text: questionText,
-      options,
+      questionId,
+      question: questionText,
+      options: questionOptions,
       answer
     });
   }
 
-  console.log(`Parsed ${questions.length} questions.`);
-  
   const result = {
     questions
   };
 
-  await fs.writeFile(absoluteOutput, JSON.stringify(result, null, 2), 'utf-8');
-  console.log(`Saved JSON to ${absoluteOutput}`);
+  await fs.writeFile(outputAbsolute, JSON.stringify(result, null, 2), 'utf-8');
+  console.log(`Saved JSON to ${outputAbsolute}`);
+  console.log(`Parsed ${questions.length} questions.`);
 }
