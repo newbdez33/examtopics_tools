@@ -1,15 +1,31 @@
-import fs from 'fs/promises';
-import path from 'path';
 import { createRequire } from 'module';
+import path from 'path';
+import fs from 'fs/promises';
+import { randomUUID } from 'crypto';
 
 const require = createRequire(import.meta.url);
 const pdf = require('pdf-parse');
 
+export type ParsedQuestionOption = {
+  label: string;
+  content: string;
+};
+
 export type ParsedQuestion = {
-  questionId: number;
-  question: string;
-  options: string[];
-  answer: string;
+  id: string;
+  questionNumber: number;
+  type: string;
+  content: string;
+  options: ParsedQuestionOption[];
+  correctAnswer: string;
+  explanation: string;
+  subQuestions: null;
+  caseId: null;
+  caseOrder: null;
+  case: null;
+  caseContent: null;
+  bookmarked: boolean;
+  hasNote: boolean;
 };
 
 export type ParsePdfOptions = {
@@ -47,14 +63,10 @@ export async function parsePdfQuestions(options: ParsePdfOptions): Promise<void>
     const answer = answerMatch ? answerMatch[1] : '';
 
     // 2. Extract Options
-    // Heuristic: Options start with "A. ", "B. ", etc.
-    // Usually "A." is the first one. We look for the FIRST occurrence of "A. " to split text and options.
-    // We use a regex that matches "A. " at the start of a line or after a newline.
-    
     const optionsStartIndex = content.search(/(^|\n)A\.\s/);
     
     let questionText = '';
-    const questionOptions: string[] = [];
+    const questionOptions: ParsedQuestionOption[] = [];
 
     if (optionsStartIndex !== -1) {
       // Everything before "A. " is the question text
@@ -85,7 +97,10 @@ export async function parsePdfQuestions(options: ParsePdfOptions): Promise<void>
         optionContent = optionContent.replace(/Most Voted/g, '').trim();
         
         const letter = match[2];
-        questionOptions.push(`${letter}. ${optionContent}`);
+        questionOptions.push({
+          label: letter,
+          content: optionContent
+        });
       }
     } else {
       // Fallback: No "A. " found. Maybe text only or weird formatting.
@@ -97,11 +112,28 @@ export async function parsePdfQuestions(options: ParsePdfOptions): Promise<void>
       questionText = questionText.replace(/^Topic \d+\s*/, '').trim();
     }
     
+    // Format content as HTML paragraph(s)
+    // Simple approach: split by double newlines and wrap in <p>
+    const contentHtml = questionText
+      .split(/\n\s*\n/)
+      .map(p => `<p>${p.replace(/\n/g, ' ').trim()}</p>`)
+      .join('');
+
     questions.push({
-      questionId,
-      question: questionText,
+      id: randomUUID(),
+      questionNumber: questionId,
+      type: answer.length > 1 ? 'multiple' : 'single',
+      content: contentHtml || `<p>${questionText}</p>`,
       options: questionOptions,
-      answer
+      correctAnswer: answer,
+      explanation: '', // PDF parsing doesn't robustly extract explanation yet
+      subQuestions: null,
+      caseId: null,
+      caseOrder: null,
+      case: null,
+      caseContent: null,
+      bookmarked: false,
+      hasNote: false
     });
   }
 
