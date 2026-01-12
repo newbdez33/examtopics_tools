@@ -3,6 +3,7 @@ import { prettifyJsonFile } from './modules/utils/prettifier.js';
 import { fetchAllQuestionsFromCurlScript } from './modules/fetch/fetcher.js';
 import { mergeQuestionsFromDir } from './modules/merge/merger.js';
 import { resolveDataPath } from './modules/utils/path-helper.js';
+import { parsePdfToQuestions } from './modules/pdf/pdf-parser.js';
 
 const program = new Command();
 
@@ -65,6 +66,20 @@ program
         inputDir: resolveDataPath(options.input),
         outputFile: resolveDataPath(options.output),
       });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('parse-pdf')
+  .description('Parse questions from a PDF file')
+  .requiredOption('-i, --input <file>', 'Input PDF file path')
+  .requiredOption('-o, --output <file>', 'Output JSON file path')
+  .action(async (options) => {
+    try {
+      await parsePdfToQuestions(resolveDataPath(options.input), resolveDataPath(options.output));
     } catch (error) {
       console.error(error instanceof Error ? error.message : error);
       process.exit(1);
